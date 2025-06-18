@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -12,20 +13,37 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PomodoroLogEntry } from '@/types/pomodoro';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns'; // Import isValid
 
 interface PomodoroLogTableProps {
   logs: PomodoroLogEntry[];
 }
 
 const PomodoroLogTable: React.FC<PomodoroLogTableProps> = ({ logs }) => {
-  const formatDate = (date: Date | any) => {
+  const formatDate = (date: Date | any, logId: string) => {
     if (date instanceof Date) {
-      return format(date, "MMM dd, yyyy 'at' hh:mm a");
+      if (isValid(date)) {
+        return format(date, "MMM dd, yyyy 'at' hh:mm a");
+      } else {
+        console.warn(`Invalid JS Date object encountered for log ID ${logId}:`, date);
+        return 'Invalid Date Obj';
+      }
     }
     if (date && typeof date.toDate === 'function') { // Firebase Timestamp
-      return format(date.toDate(), "MMM dd, yyyy 'at' hh:mm a");
+      try {
+        const jsDate = date.toDate();
+        if (isValid(jsDate)) {
+          return format(jsDate, "MMM dd, yyyy 'at' hh:mm a");
+        } else {
+          console.warn(`Firebase Timestamp toDate() resulted in an invalid date for log ID ${logId}:`, jsDate, date);
+          return 'Invalid Conv. Date';
+        }
+      } catch (e) {
+        console.error(`Error converting Firebase Timestamp to Date for log ID ${logId}:`, e, date);
+        return 'Conversion Error';
+      }
     }
+    console.warn(`Unformattable date value encountered for log ID ${logId}:`, date);
     return 'Invalid Date';
   };
 
@@ -50,7 +68,7 @@ const PomodoroLogTable: React.FC<PomodoroLogTableProps> = ({ logs }) => {
             <TableBody>
               {logs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell className="font-medium">{formatDate(log.date)}</TableCell>
+                  <TableCell className="font-medium">{formatDate(log.date, log.id)}</TableCell>
                   <TableCell>{log.mode === 'work' ? 'Focus Time 💪' : 'Us Time 🥰'}</TableCell>
                   <TableCell className="text-right">{log.durationMinutes} min</TableCell>
                 </TableRow>
