@@ -37,8 +37,7 @@ export default function PomodoroPage() {
     <div className="container mx-auto px-4 py-8 flex flex-col items-center min-h-screen selection:bg-accent/30">
       <header className="w-full max-w-2xl mb-8 text-center">
         <h1 className="text-5xl font-headline font-bold text-primary mb-2 flex items-center justify-center">
-          Pomodoro for Yashi & Avinash 
-          <Heart className="ml-3 h-10 w-10 text-primary fill-current" />
+          Yashi ❤️ Avinash
         </h1>
         <p className="text-lg text-foreground/80">Our special time to focus and grow together.</p>
       </header>
@@ -75,15 +74,7 @@ export default function PomodoroPage() {
         </div>
       )}
 
-      {!sessionId && (
-        <Card className="w-full max-w-md mt-8 p-8 text-center bg-card shadow-lg rounded-xl">
-          <h2 className="text-2xl font-semibold text-primary mb-4">Welcome, Lovebirds! <Heart className="inline h-6 w-6 text-primary fill-current" /></h2>
-          <p className="text-muted-foreground text-lg">
-            Ready to start your focused time together, Yashi & Avinash? Create or join your special session.
-          </p>
-        </Card>
-      )}
-
+      
 
       <PomodoroSettingsModal
         isOpen={isSettingsModalOpen}
@@ -93,9 +84,7 @@ export default function PomodoroPage() {
         onSave={handleSettingsChange}
       />
       
-      <footer className="mt-auto pt-12 text-center text-muted-foreground">
-        <p className="flex items-center justify-center">Made with <Heart className="mx-1 h-4 w-4 text-primary fill-current" /> for Yashi & Avinash. &copy; {new Date().getFullYear()} Stay focused, together!</p>
-      </footer>
+      
     </div>
   );
 }
