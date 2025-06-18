@@ -75,8 +75,8 @@ const SessionManager: React.FC<SessionManagerProps> = ({ sessionId, onCreateSess
           </div>
         ) : (
           <div className="space-y-4">
-            <Button onClick={onCreateSession} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base">
-              Start Our Session <Heart className="ml-2 h-4 w-4 fill-current" />
+            <Button onClick={onCreateSession} className="w-full py-3 text-base">
+            Let's Cuddle 🫦
             </Button>
             <div className="flex items-center space-x-2">
               <hr className="flex-grow border-t border-border" />
