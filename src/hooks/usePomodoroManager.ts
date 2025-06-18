@@ -52,8 +52,9 @@ export function usePomodoroManager() {
     setBreakDuration(initialBreak);
     console.log("[LocalStorage] Initial Break Duration:", initialBreak);
 
-    setCurrentTime(initialWork * 60); // Initialize currentTime based on loaded/default work duration
+    setCurrentTime(initialWork * 60); 
     initialDurationForLogRef.current = initialWork * 60;
+    console.log(`[LocalStorage] Initial currentTime set to ${initialWork * 60} seconds for mode 'work'.`);
 
   }, []);
   
@@ -75,23 +76,28 @@ export function usePomodoroManager() {
       if (currentTime !== newTime) {
          setCurrentTime(newTime);
          initialDurationForLogRef.current = newTime;
-         console.log(`[Timer] Mode/Duration changed locally. New time: ${newTime/60}m for ${currentMode}`);
+         console.log(`[Timer] Mode/Duration changed locally while stopped/paused. New time: ${newTime/60}m for ${currentMode}`);
       }
     }
-  }, [workDuration, breakDuration, currentMode, timerState]); // Removed currentTime to avoid loop with its own setter
+  }, [workDuration, breakDuration, currentMode, timerState]); 
 
   const addPomodoroLog = useCallback(async (mode: TimerMode, durationSecondsLogged: number, currentCoupleSessionId: string | null) => {
     if (durationSecondsLogged <= 0 || !currentCoupleSessionId) {
       console.warn("[Log] Skipping log: duration or session ID invalid.", {durationSecondsLogged, currentCoupleSessionId});
       return;
     }
-    console.log(`[Log] Attempting to add log for session ${currentCoupleSessionId}: mode=${mode}, duration=${Math.round(durationSecondsLogged / 60)}min`);
+    const durationMinutes = Math.round(durationSecondsLogged / 60);
+    if (durationMinutes === 0) {
+      console.warn(`[Log] Skipping log for session ${currentCoupleSessionId}: duration rounds to 0 minutes.`);
+      return;
+    }
+    console.log(`[Log] Attempting to add log for session ${currentCoupleSessionId}: mode=${mode}, duration=${durationMinutes}min`);
     try {
       await addDoc(collection(db, "pomodoroLogs"), {
         sessionId: currentCoupleSessionId, 
         date: serverTimestamp(),
         mode: mode,
-        durationMinutes: Math.round(durationSecondsLogged / 60),
+        durationMinutes: durationMinutes,
       });
       console.log(`[Log] Successfully added log for session ${currentCoupleSessionId}`);
     } catch (error) {
@@ -108,11 +114,17 @@ export function usePomodoroManager() {
     console.log(`[Firestore] Attempting to update shared state for ${coupleSessionID} by ${userID}:`, newState);
     try {
       const docRef = doc(db, 'sharedPomodoros', coupleSessionID);
-      const payload = {
+      const payload: any = { // Use 'any' temporarily for flexibility with serverTimestamp
         ...newState,
         lastUpdatedBy: userID,
         timestamp: serverTimestamp(),
       };
+      
+      // Ensure specific fields are numbers if they exist in newState
+      if ('currentTime' in newState && typeof newState.currentTime !== 'number') payload.currentTime = Number(newState.currentTime);
+      if ('workDuration' in newState && typeof newState.workDuration !== 'number') payload.workDuration = Number(newState.workDuration);
+      if ('breakDuration' in newState && typeof newState.breakDuration !== 'number') payload.breakDuration = Number(newState.breakDuration);
+
       await updateDoc(docRef, payload);
       console.log(`[Firestore] Successfully updated shared state for ${coupleSessionID}.`);
     } catch (error: any) {
@@ -160,7 +172,7 @@ export function usePomodoroManager() {
           setCurrentTime(data.currentTime);
           setTimerState(data.timerState);
           setCurrentMode(data.currentMode);
-          // Only update durations if they are different, to avoid overwriting local settings if they were just changed
+          
           if (data.workDuration !== workDuration) setWorkDuration(data.workDuration);
           if (data.breakDuration !== breakDuration) setBreakDuration(data.breakDuration);
           initialDurationForLogRef.current = data.currentMode === 'work' ? data.workDuration * 60 : data.breakDuration * 60;
@@ -176,13 +188,12 @@ export function usePomodoroManager() {
           currentTime: workDuration * 60,
           timerState: 'stopped',
           lastUpdatedBy: userID,
-          timestamp: serverTimestamp() as Timestamp,
+          timestamp: serverTimestamp() as Timestamp, // Firestore will convert this
         };
         console.log("[Firestore Sync] Initial state to be set:", initialSharedState);
         try {
           await setDoc(docRef, initialSharedState);
           console.log(`[Firestore Sync] Successfully created shared state for ${coupleSessionID}.`);
-          // Set local state to match the initial shared state after creation
           setCurrentTime(initialSharedState.currentTime);
           setTimerState(initialSharedState.timerState);
           setCurrentMode(initialSharedState.currentMode);
@@ -200,7 +211,7 @@ export function usePomodoroManager() {
       console.log(`[Firestore Sync] Unsubscribing listener for ${coupleSessionID}`);
       unsubscribe();
     };
-  }, [coupleSessionID, userID, toast, workDuration, breakDuration]); // Added workDuration and breakDuration
+  }, [coupleSessionID, userID, toast, workDuration, breakDuration]); // Firestore sync depends on initial durations too
 
 
   useEffect(() => {
@@ -224,15 +235,17 @@ export function usePomodoroManager() {
       });
       
       console.log(`[Timer] Switching mode to ${nextMode}, new duration ${newDurationSeconds / 60}min. Updating shared state.`);
-      updateSharedState({
+      
+      setCurrentMode(nextMode); 
+      setCurrentTime(newDurationSeconds);
+      setTimerState('stopped');
+      initialDurationForLogRef.current = newDurationSeconds;
+
+      updateSharedState({ // This should be called after local state updates for consistency if partner joins mid-update
         currentMode: nextMode,
         currentTime: newDurationSeconds,
         timerState: 'stopped',
       });
-       setCurrentMode(nextMode); 
-       setCurrentTime(newDurationSeconds);
-       setTimerState('stopped');
-       initialDurationForLogRef.current = newDurationSeconds;
     }
     return () => {
       if (localTimerIntervalRef.current) clearInterval(localTimerIntervalRef.current);
@@ -257,7 +270,7 @@ export function usePomodoroManager() {
       console.log(`[Logs] Fetched ${logs.length} logs for session ${coupleSessionID}.`);
     }, (error) => {
       console.error("[Logs] Error fetching logs: ", error);
-      toast({ title: "Error", description: "Could not fetch our focus journal.", variant: "destructive" });
+      toast({ title: "Error Fetching Journal", description: "Could not fetch our focus journal. Check browser console for details.", variant: "destructive" });
     });
     return () => {
       console.log(`[Logs] Unsubscribing listener for pomodoroLogs (sessionId=${coupleSessionID})`);
@@ -289,8 +302,11 @@ export function usePomodoroManager() {
       localStorage.setItem('pomodoroPartnerID', trimmedId);
       console.log("[Session] PartnerID set to:", trimmedId);
       toast({ title: "Partner Linked!", description: `Ready for focused time with ${trimmedId}! 🥰` });
-    } else {
-      toast({ title: "Oops!", description: "Please enter your partner's User ID.", variant: "destructive" });
+    } else { // Removed partnerID from localStorage if input is empty
+      setPartnerIDState(null);
+      localStorage.removeItem('pomodoroPartnerID');
+      console.log("[Session] PartnerID cleared.");
+      toast({ title: "Partner Disconnected", description: "You can link with your partner again anytime.", variant: "destructive" });
     }
   };
   
@@ -325,13 +341,9 @@ export function usePomodoroManager() {
       return;
     }
     let newCurrentTime = currentTime;
-    if (timerState === 'stopped' && newCurrentTime === 0) { 
+    if (timerState === 'stopped' || timerState === 'paused' || newCurrentTime === 0 ) { 
         newCurrentTime = (currentMode === 'work' ? workDuration : breakDuration) * 60;
-    } else if (timerState === 'stopped' /* && newCurrentTime > 0 (implicit) */ ) {
-      // If stopped and not at 0, reset to full duration. This ensures a fresh start.
-      newCurrentTime = (currentMode === 'work' ? workDuration : breakDuration) * 60;
     }
-
     initialDurationForLogRef.current = newCurrentTime; 
     
     console.log(`[Timer] Starting timer. Mode: ${currentMode}, Time: ${newCurrentTime/60}m. User: ${userID}`);
@@ -345,7 +357,7 @@ export function usePomodoroManager() {
     if (!coupleSessionID || !userID) return;
     console.log(`[Timer] Pausing timer. User: ${userID}`);
     setTimerState('paused'); 
-    updateSharedState({ timerState: 'paused' });
+    updateSharedState({ timerState: 'paused' }); // Only update what changed
   }, [coupleSessionID, userID, updateSharedState]);
 
   const stopTimer = useCallback(() => {
@@ -398,11 +410,12 @@ export function usePomodoroManager() {
     setBreakDuration(newSettings.breakDuration); 
 
     let newCurrentTimeForSync = currentTime;
+    // If timer is not running, update its current time to reflect the new duration of the current mode
     if (timerState === 'stopped' || timerState === 'paused') {
       newCurrentTimeForSync = (currentMode === 'work' ? newSettings.workDuration : newSettings.breakDuration) * 60;
       setCurrentTime(newCurrentTimeForSync); 
       initialDurationForLogRef.current = newCurrentTimeForSync;
-      console.log(`[Settings] Timer is stopped/paused. Reflecting new duration in currentTime: ${newCurrentTimeForSync/60}m`);
+      console.log(`[Settings] Timer is stopped/paused. Reflecting new duration in currentTime: ${newCurrentTimeForSync/60}m for ${currentMode}`);
     }
     
     if (!coupleSessionID || !userID) {
@@ -414,7 +427,9 @@ export function usePomodoroManager() {
     updateSharedState({
       workDuration: newSettings.workDuration,
       breakDuration: newSettings.breakDuration,
-      currentTime: newCurrentTimeForSync, 
+      currentTime: newCurrentTimeForSync, // Send the potentially updated currentTime
+      currentMode: currentMode, // Ensure currentMode is part of the update
+      timerState: timerState // Ensure timerState is part of the update
     });
     toast({ title: "Our Settings Synced!", description: "Pomodoro durations are updated for both of us. Perfect!" });
   }, [coupleSessionID, userID, toast, updateSharedState, currentMode, timerState, currentTime]);
