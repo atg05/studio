@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Pomodoro Together',
-  description: 'A real-time Pomodoro timer app.',
+  title: 'Our Pomodoro Time - Yashi & Avinash',
+  description: 'Focus together, grow together. Our special Pomodoro timer for Yashi & Avinash.',
 };
 
 export default function RootLayout({

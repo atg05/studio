@@ -17,16 +17,16 @@ const ModeTabs: React.FC<ModeTabsProps> = ({ currentMode, onModeChange }) => {
           <TabsTrigger 
             value="work" 
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md rounded-md py-2 text-base transition-all duration-150"
-            aria-label="Switch to Work mode"
+            aria-label="Switch to Focus Time mode"
           >
-            Work
+            Focus Time
           </TabsTrigger>
           <TabsTrigger 
             value="break" 
             className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-md rounded-md py-2 text-base transition-all duration-150"
-            aria-label="Switch to Break mode"
+            aria-label="Switch to Us Time mode"
           >
-            Break
+            Us Time
           </TabsTrigger>
         </TabsList>
       </Tabs>

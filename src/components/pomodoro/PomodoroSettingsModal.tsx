@@ -14,6 +14,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import type { PomodoroSettingsValues } from '@/types/pomodoro';
+import { Heart } from 'lucide-react';
 
 interface PomodoroSettingsModalProps {
   isOpen: boolean;
@@ -21,7 +22,6 @@ interface PomodoroSettingsModalProps {
   initialWorkDuration: number;
   initialBreakDuration: number;
   onSave: (settings: PomodoroSettingsValues) => void;
-  // isSessionCreator: boolean; // To disable if not creator and session active (simplified for now)
 }
 
 const PomodoroSettingsModal: React.FC<PomodoroSettingsModalProps> = ({
@@ -48,15 +48,15 @@ const PomodoroSettingsModal: React.FC<PomodoroSettingsModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px] bg-card shadow-xl rounded-lg">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-headline text-primary">Pomodoro Settings</DialogTitle>
+          <DialogTitle className="text-2xl font-headline text-primary">Our Pomodoro Settings</DialogTitle>
           <DialogDescription className="text-base">
-            Adjust your work and break durations (in minutes).
+            Let's set our perfect focus and break times (in minutes), Yashi & Avinash.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-6">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="work-duration" className="text-right text-base col-span-1">
-              Work
+              Focus Time
             </Label>
             <Input
               id="work-duration"
@@ -65,12 +65,12 @@ const PomodoroSettingsModal: React.FC<PomodoroSettingsModalProps> = ({
               onChange={(e) => setWorkDuration(Math.max(1, parseInt(e.target.value, 10) || 1))}
               className="col-span-3 text-base"
               min="1"
-              aria-label="Work duration in minutes"
+              aria-label="Focus time duration in minutes"
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="break-duration" className="text-right text-base col-span-1">
-              Break
+              Us Time
             </Label>
             <Input
               id="break-duration"
@@ -79,7 +79,7 @@ const PomodoroSettingsModal: React.FC<PomodoroSettingsModalProps> = ({
               onChange={(e) => setBreakDuration(Math.max(1, parseInt(e.target.value, 10) || 1))}
               className="col-span-3 text-base"
               min="1"
-              aria-label="Break duration in minutes"
+              aria-label="Us time duration in minutes"
             />
           </div>
         </div>
@@ -90,7 +90,7 @@ const PomodoroSettingsModal: React.FC<PomodoroSettingsModalProps> = ({
             </Button>
           </DialogClose>
           <Button type="button" onClick={handleSave} className="bg-accent hover:bg-accent/90 text-accent-foreground text-base">
-            Save Changes
+            Save Our Settings <Heart className="ml-2 h-4 w-4 fill-current" />
           </Button>
         </DialogFooter>
       </DialogContent>
