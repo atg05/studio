@@ -45,7 +45,7 @@ export default function PomodoroPage() {
     <div className="container mx-auto px-4 py-8 flex flex-col items-center min-h-screen selection:bg-accent/30">
       <header className="w-full max-w-2xl mb-8 text-center">
         <h1 className="text-5xl font-headline font-bold text-primary mb-2 flex items-center justify-center">
-          Yashi ❤️ Avinash
+          Welcome
         </h1>
         <p className="text-lg text-foreground/80">Our special time to focus and grow together.</p>
       </header>
