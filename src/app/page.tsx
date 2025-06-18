@@ -4,29 +4,32 @@
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Settings2 } from 'lucide-react';
+import { Settings2, UserCog, Link2, LogOut } from 'lucide-react';
 
 import TimerDisplay from '@/components/pomodoro/TimerDisplay';
 import TimerControls from '@/components/pomodoro/TimerControls';
-import SessionManager from '@/components/pomodoro/SessionManager';
+import SessionManager from '@/components/pomodoro/SessionManager'; // Will be updated for UserID management
 import ModeTabs from '@/components/pomodoro/ModeTabs';
 import PomodoroSettingsModal from '@/components/pomodoro/PomodoroSettingsModal';
-import PomodoroLogTable from '@/components/pomodoro/PomodoroLogTable'; // Import the log table
+import PomodoroLogTable from '@/components/pomodoro/PomodoroLogTable';
 
 import { usePomodoroManager } from '@/hooks/usePomodoroManager';
 
 export default function PomodoroPage() {
   const {
-    sessionId,
+    userID,
+    partnerID,
+    coupleSessionID, // Derived from userID and partnerID
     timerState,
     currentMode,
     currentTime,
     workDuration,
     breakDuration,
     isSettingsModalOpen,
-    pomodoroLogs, // Get logs from the hook
-    createSession,
-    joinSession,
+    pomodoroLogs,
+    handleSetUserID,
+    handleSetPartnerID,
+    logoutAndReset,
     startTimer,
     pauseTimer,
     stopTimer,
@@ -35,6 +38,8 @@ export default function PomodoroPage() {
     openSettingsModal,
     closeSettingsModal,
   } = usePomodoroManager();
+
+  const isFullyConnected = userID && partnerID && coupleSessionID;
 
   return (
     <div className="container mx-auto px-4 py-8 flex flex-col items-center min-h-screen selection:bg-accent/30">
@@ -46,13 +51,15 @@ export default function PomodoroPage() {
       </header>
 
       <SessionManager
-        sessionId={sessionId}
-        onCreateSession={createSession}
-        onJoinSession={joinSession}
+        currentUserID={userID}
+        currentPartnerID={partnerID}
+        onSetUserID={handleSetUserID}
+        onSetPartnerID={handleSetPartnerID}
+        onLogout={logoutAndReset}
       />
 
-      {sessionId && (
-         <div className="w-full max-w-md relative">
+      {isFullyConnected ? (
+         <div className="w-full max-w-md relative mt-8">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -75,13 +82,29 @@ export default function PomodoroPage() {
             </CardContent>
           </Card>
         </div>
+      ) : (
+        <Card className="w-full max-w-md mt-8 shadow-lg">
+          <CardContent className="p-6 text-center">
+            <p className="text-muted-foreground text-lg">
+              { !userID ? "Please set your User ID above to begin." 
+              : !partnerID ? "Now, link with your partner above to start your synced session!" 
+              : "Connecting..."}
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Our love grows with every shared moment. ❤️
+            </p>
+          </CardContent>
+        </Card>
       )}
 
-      {sessionId && (
-        <div className="w-full max-w-2xl mt-8"> {/* Adjusted width for log table */}
+      {isFullyConnected && pomodoroLogs.length > 0 && (
+        <div className="w-full max-w-2xl mt-8">
           <PomodoroLogTable logs={pomodoroLogs} />
         </div>
       )}
+       {isFullyConnected && pomodoroLogs.length === 0 && (
+         <p className="text-center text-muted-foreground mt-8">No focus sessions logged yet for this beautiful connection. Let's start one! 🥰</p>
+       )}
       
 
       <PomodoroSettingsModal

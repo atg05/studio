@@ -10,8 +10,19 @@ export interface PomodoroSettingsValues {
 
 export interface PomodoroLogEntry {
   id: string;
-  sessionId: string;
-  date: Timestamp | Date; // Firestore timestamp, Date when displayed
+  sessionId: string; // Will store coupleSessionID
+  date: Timestamp | Date; 
   mode: TimerMode;
   durationMinutes: number;
+}
+
+// Represents the shared state in Firestore
+export interface SharedPomodoroState {
+  currentTime: number;
+  timerState: TimerState;
+  currentMode: TimerMode;
+  workDuration: number;
+  breakDuration: number;
+  lastUpdatedBy: string | null;
+  timestamp: Timestamp;
 }
