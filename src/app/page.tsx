@@ -1,15 +1,17 @@
+
 "use client";
 
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Settings2, Heart } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
 
 import TimerDisplay from '@/components/pomodoro/TimerDisplay';
 import TimerControls from '@/components/pomodoro/TimerControls';
 import SessionManager from '@/components/pomodoro/SessionManager';
 import ModeTabs from '@/components/pomodoro/ModeTabs';
 import PomodoroSettingsModal from '@/components/pomodoro/PomodoroSettingsModal';
+import PomodoroLogTable from '@/components/pomodoro/PomodoroLogTable'; // Import the log table
 
 import { usePomodoroManager } from '@/hooks/usePomodoroManager';
 
@@ -22,6 +24,7 @@ export default function PomodoroPage() {
     workDuration,
     breakDuration,
     isSettingsModalOpen,
+    pomodoroLogs, // Get logs from the hook
     createSession,
     joinSession,
     startTimer,
@@ -54,7 +57,7 @@ export default function PomodoroPage() {
             variant="ghost" 
             size="icon" 
             onClick={openSettingsModal} 
-            className="absolute top-4 right-4 text-primary hover:text-accent hover:bg-accent/10"
+            className="absolute top-4 right-4 text-primary hover:text-accent hover:bg-accent/10 z-10"
             aria-label="Open Pomodoro settings"
           >
             <Settings2 className="h-6 w-6" />
@@ -74,6 +77,11 @@ export default function PomodoroPage() {
         </div>
       )}
 
+      {sessionId && (
+        <div className="w-full max-w-2xl mt-8"> {/* Adjusted width for log table */}
+          <PomodoroLogTable logs={pomodoroLogs} />
+        </div>
+      )}
       
 
       <PomodoroSettingsModal
@@ -83,7 +91,6 @@ export default function PomodoroPage() {
         initialBreakDuration={breakDuration}
         onSave={handleSettingsChange}
       />
-      
       
     </div>
   );

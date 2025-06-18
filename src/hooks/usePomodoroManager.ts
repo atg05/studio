@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import type { TimerMode, TimerState, PomodoroSettingsValues } from '@/types/pomodoro';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { TimerMode, TimerState, PomodoroSettingsValues, PomodoroLogEntry } from '@/types/pomodoro';
 import { useToast } from "@/hooks/use-toast";
+import { db } from '@/lib/firebase';
+import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 const DEFAULT_WORK_DURATION = 25; // minutes
 const DEFAULT_BREAK_DURATION = 5; // minutes
@@ -16,31 +18,41 @@ export function usePomodoroManager() {
   const [breakDuration, setBreakDuration] = useState<number>(DEFAULT_BREAK_DURATION);
   const [isSessionCreator, setIsSessionCreator] = useState<boolean>(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
+  const [pomodoroLogs, setPomodoroLogs] = useState<PomodoroLogEntry[]>([]);
+  
+  const initialDurationForLogRef = useRef<number>(0); // Stores the full duration of the current segment when it starts
 
   const { toast } = useToast();
 
-  // Load settings from localStorage
   useEffect(() => {
     const storedWorkDuration = localStorage.getItem('pomodoroWorkDuration');
     const storedBreakDuration = localStorage.getItem('pomodoroBreakDuration');
 
-    if (storedWorkDuration) {
-      setWorkDuration(parseInt(storedWorkDuration, 10));
-    }
-    if (storedBreakDuration) {
-      setBreakDuration(parseInt(storedBreakDuration, 10));
-    }
+    if (storedWorkDuration) setWorkDuration(parseInt(storedWorkDuration, 10));
+    if (storedBreakDuration) setBreakDuration(parseInt(storedBreakDuration, 10));
   }, []);
 
-  // Update currentTime when durations or mode change and timer is stopped/paused
   useEffect(() => {
     if (timerState === 'stopped' || timerState === 'paused') {
       setCurrentTime((currentMode === 'work' ? workDuration : breakDuration) * 60);
     }
   }, [workDuration, breakDuration, currentMode, timerState]);
 
-
-  // Timer countdown logic
+  const addPomodoroLog = useCallback(async (mode: TimerMode, durationSecondsLogged: number, currentSessionId: string) => {
+    if (durationSecondsLogged <= 0 || !currentSessionId) return;
+    try {
+      await addDoc(collection(db, "pomodoroLogs"), {
+        sessionId: currentSessionId,
+        date: serverTimestamp(),
+        mode: mode,
+        durationMinutes: Math.round(durationSecondsLogged / 60),
+      });
+    } catch (error) {
+      console.error("Error adding pomodoro log: ", error);
+      toast({ title: "Log Error", description: "Could not save your session to our journal.", variant: "destructive" });
+    }
+  }, [toast]);
+  
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
@@ -49,26 +61,54 @@ export function usePomodoroManager() {
         setCurrentTime((prevTime) => prevTime - 1);
       }, 1000);
     } else if (timerState === 'running' && currentTime === 0) {
-      // Time's up, switch mode
+      if (sessionId) {
+        addPomodoroLog(currentMode, initialDurationForLogRef.current, sessionId);
+      }
       const nextMode: TimerMode = currentMode === 'work' ? 'break' : 'work';
-      setCurrentMode(nextMode);
-      setCurrentTime((nextMode === 'work' ? workDuration : breakDuration) * 60);
-      setTimerState('stopped'); // Or 'paused' if auto-start next is desired
       toast({
-        title: `${currentMode === 'work' ? "Work" : "Break"} session complete!`,
-        description: `Starting ${nextMode} mode.`,
+        title: `${currentMode === 'work' ? "Focus Time" : "Us Time"} complete!`,
+        description: `Let's start our ${nextMode === 'work' ? "Focus Time" : "Us Time"}.`,
       });
-      // Here you could play a sound
+      setCurrentMode(nextMode);
+      const newDuration = (nextMode === 'work' ? workDuration : breakDuration) * 60;
+      setCurrentTime(newDuration);
+      initialDurationForLogRef.current = newDuration; // Set for next segment
+      setTimerState('stopped'); 
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [timerState, currentTime, currentMode, workDuration, breakDuration, toast]);
+  }, [timerState, currentTime, currentMode, workDuration, breakDuration, toast, sessionId, addPomodoroLog]);
 
-  const generateSessionId = (): string => {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-  };
+  useEffect(() => {
+    if (!sessionId) {
+      setPomodoroLogs([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, "pomodoroLogs"),
+      where("sessionId", "==", sessionId),
+      orderBy("date", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const logs: PomodoroLogEntry[] = [];
+      querySnapshot.forEach((doc) => {
+        logs.push({ id: doc.id, ...doc.data() } as PomodoroLogEntry);
+      });
+      setPomodoroLogs(logs);
+    }, (error) => {
+      console.error("Error fetching logs: ", error);
+      toast({ title: "Error", description: "Could not fetch our focus journal.", variant: "destructive" });
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, toast]);
+
+
+  const generateSessionId = (): string => Math.random().toString(36).substring(2, 8).toUpperCase();
 
   const createSession = useCallback(() => {
     const newSessionId = generateSessionId();
@@ -76,57 +116,71 @@ export function usePomodoroManager() {
     setIsSessionCreator(true);
     setTimerState('stopped');
     setCurrentMode('work');
-    setCurrentTime(workDuration * 60);
-    // Mock Firebase: In a real app, this would write to Firebase
-    toast({ title: "Session Created", description: `Session ID: ${newSessionId}` });
+    const initialWorkTime = workDuration * 60;
+    setCurrentTime(initialWorkTime);
+    initialDurationForLogRef.current = initialWorkTime;
+    toast({ title: "Our Session Created!", description: `Let's make memories with ID: ${newSessionId} 💕` });
   }, [workDuration, toast]);
 
   const joinSession = useCallback((idToJoin: string) => {
-    if (idToJoin && idToJoin.length > 0) { // Basic validation
-      // Mock Firebase: In a real app, try to read session `idToJoin` from Firebase
-      // For this mock, we'll just join successfully if an ID is provided.
-      // And assume we are not the creator unless it's the one we "created".
-      // This part is highly simplified.
-      setSessionId(idToJoin);
-      setIsSessionCreator(false); // Assume joining means not creator
-      setTimerState('stopped'); // Assume default state from "Firebase"
-      setCurrentMode('work');   // Assume default state
-      setCurrentTime(workDuration * 60); // Assume default state
-      toast({ title: "Session Joined", description: `Joined session: ${idToJoin}` });
+    if (idToJoin && idToJoin.trim().length > 0) {
+      setSessionId(idToJoin.trim().toUpperCase());
+      setIsSessionCreator(false);
+      setTimerState('stopped'); 
+      setCurrentMode('work');   
+      const initialWorkTime = workDuration * 60;
+      setCurrentTime(initialWorkTime);
+      initialDurationForLogRef.current = initialWorkTime;
+      toast({ title: "Joined Our Session!", description: `Ready to focus with ${idToJoin.trim().toUpperCase()} 🥰` });
     } else {
-      toast({ title: "Error", description: "Invalid Session ID.", variant: "destructive" });
+      toast({ title: "Oops!", description: "Please enter a valid Session ID, my love.", variant: "destructive" });
     }
   }, [workDuration, toast]);
 
   const startTimer = useCallback(() => {
     if (!sessionId) {
-      toast({ title: "No active session", description: "Please create or join a session first.", variant: "destructive"});
+      toast({ title: "No Session", description: "Let's create or join a session first, darling.", variant: "destructive"});
       return;
     }
-    if (currentTime === 0) { // If timer ended, reset to current mode's duration before starting
-      setCurrentTime((currentMode === 'work' ? workDuration : breakDuration) * 60);
+    let newCurrentTime = currentTime;
+    if (currentTime === 0) { 
+      newCurrentTime = (currentMode === 'work' ? workDuration : breakDuration) * 60;
+      setCurrentTime(newCurrentTime);
     }
+    initialDurationForLogRef.current = newCurrentTime; // Set full duration at start
     setTimerState('running');
-    // Mock Firebase: Update timerState in Firebase
   }, [sessionId, currentMode, workDuration, breakDuration, currentTime, toast]);
 
   const pauseTimer = useCallback(() => {
     setTimerState('paused');
-    // Mock Firebase: Update timerState in Firebase
   }, []);
 
   const stopTimer = useCallback(() => {
+    if (timerState === 'running' || timerState === 'paused') {
+      const timeSpentSeconds = initialDurationForLogRef.current - currentTime;
+      if (sessionId && timeSpentSeconds > 0) {
+         addPomodoroLog(currentMode, timeSpentSeconds, sessionId);
+      }
+    }
     setTimerState('stopped');
-    setCurrentTime((currentMode === 'work' ? workDuration : breakDuration) * 60);
-    // Mock Firebase: Update timerState and currentTime in Firebase
-  }, [currentMode, workDuration, breakDuration]);
+    const newDuration = (currentMode === 'work' ? workDuration : breakDuration) * 60;
+    setCurrentTime(newDuration);
+    initialDurationForLogRef.current = newDuration; // Reset for next potential start
+  }, [currentMode, workDuration, breakDuration, toast, timerState, currentTime, sessionId, addPomodoroLog]);
 
   const switchTimerMode = useCallback((newMode: TimerMode) => {
+    if (timerState === 'running' || timerState === 'paused') {
+      const timeSpentSeconds = initialDurationForLogRef.current - currentTime;
+       if (sessionId && timeSpentSeconds > 0) {
+        addPomodoroLog(currentMode, timeSpentSeconds, sessionId);
+      }
+    }
     setCurrentMode(newMode);
     setTimerState('stopped');
-    setCurrentTime((newMode === 'work' ? workDuration : breakDuration) * 60);
-    // Mock Firebase: Update currentMode, timerState, currentTime
-  }, [workDuration, breakDuration]);
+    const newDuration = (newMode === 'work' ? workDuration : breakDuration) * 60;
+    setCurrentTime(newDuration);
+    initialDurationForLogRef.current = newDuration; // Set for the new mode
+  }, [workDuration, breakDuration, timerState, currentTime, sessionId, currentMode, addPomodoroLog]);
 
   const handleSettingsChange = useCallback((newSettings: PomodoroSettingsValues) => {
     setWorkDuration(newSettings.workDuration);
@@ -134,13 +188,12 @@ export function usePomodoroManager() {
     localStorage.setItem('pomodoroWorkDuration', newSettings.workDuration.toString());
     localStorage.setItem('pomodoroBreakDuration', newSettings.breakDuration.toString());
     
-    // If timer is stopped or paused, update its current time based on the new duration for the current mode
     if (timerState === 'stopped' || timerState === 'paused') {
-      setCurrentTime((currentMode === 'work' ? newSettings.workDuration : newSettings.breakDuration) * 60);
+      const newCurrentTime = (currentMode === 'work' ? newSettings.workDuration : newSettings.breakDuration) * 60;
+      setCurrentTime(newCurrentTime);
+      initialDurationForLogRef.current = newCurrentTime;
     }
-
-    toast({ title: "Settings Updated", description: "Pomodoro durations have been saved." });
-    // Mock Firebase: If isSessionCreator, update session settings in Firebase
+    toast({ title: "Our Settings Updated!", description: "Pomodoro durations are now perfect for us." });
   }, [currentMode, timerState, toast]);
 
   const openSettingsModal = () => setIsSettingsModalOpen(true);
@@ -155,6 +208,7 @@ export function usePomodoroManager() {
     breakDuration,
     isSessionCreator,
     isSettingsModalOpen,
+    pomodoroLogs, // expose logs
     createSession,
     joinSession,
     startTimer,
