@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export type TimerMode = 'work' | 'break';
@@ -11,7 +12,7 @@ export interface PomodoroSettingsValues {
 export interface PomodoroLogEntry {
   id: string;
   sessionId: string; // Will store coupleSessionID
-  date: Timestamp | Date; 
+  date: Timestamp | Date | null; // Allow null for temporary states or problematic old data
   mode: TimerMode;
   durationMinutes: number;
 }
